@@ -1,0 +1,357 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Generation of policies and entities that will be used to provision the resources for the leonomano-website project.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Nombre del proyecto
+    Default: leonomano-website
+  AppName:
+    Type: String
+    Description: Nombre de la aplicación.
+    Default: tf-service-user
+  UserName:
+    Type: String
+    Description: Nombre del usuario aprovisionador
+    Default: provisioner
+
+Resources:
+  ProvisioningGroup:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: !Join
+        - '-'
+        - - !Ref ProjectName
+          - !Ref AppName
+          - archicture-provisioning
+      Policies:
+        - PolicyName: !Join
+          - '-'
+          - - !Ref ProjectName
+            - !Ref AppName
+            - assume-role-service
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: AllowAssumeRole
+                Effect: Allow
+                Action: sts:AssumeRole
+                Resource: !GetAtt ProvisionerRole.Arn
+
+     # ManagedPolicyArns:
+     #   - !Ref CICDToolsPolicy
+     #   - !Ref S3Policy
+     #   - !Ref DynamoPolicy
+     #   - !Ref IamPolicy
+
+  CICDToolsPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: 'Politica que permite crear los recursos del Pipeline de CI/CD'
+      ManagedPolicyName: !Join
+        - '-'
+        - - !Ref ProjectName
+          - !Ref AppName
+          - 'cicd-tools'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowCodePipelineActions
+            Effect: Allow
+            Action:
+              - codepipeline:Create*
+              - codepipeline:Delete*
+              - codepipeline:DeregisterWebhookWithThirdParty
+              - codepipeline:*StageTransition
+              - codepipeline:GetPipeline*
+              - codepipeline:List*
+              - codepipeline:PutActionRevision
+              - codepipeline:PutWebhook
+              - codepipeline:RegisterWebhookWithThirdParty
+              - codepipeline:TagResource
+              - codepipeline:UntagResource
+              - codepipeline:Update*
+            Resource:
+              - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${ProjectName}* # pipeline
+              #- !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:${ProjectName}/* # stage and action
+              - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:actiontype:* # actiontype
+              - !Sub arn:aws:codepipeline:${AWS::Region}:${AWS::AccountId}:q::${ProjectName}* # webook
+          - Sid: AllowCodeBuildlineActions
+            Effect: Allow
+            Action:
+              - codebuild:BatchGetBuild*
+              - codebuild:BatchGetProjects
+              - codebuild:CreateProject
+              - codebuild:DeleteBuildBatch
+              - codebuild:DeleteProject
+              - codebuild:ListCuratedEnvironmentImages
+              - codebuild:ListProjects
+              - codebuild:UpdateProject
+            Resource:
+              - !Sub arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/${ProjectName}*
+          - Sid: AllowCodeDeployActions
+            Effect: Allow
+            Action:
+              - codedeploy:BatchGetDeploymentGroups
+              - codedeploy:ListApplications
+              - codedeploy:ListDeploymentGroups
+            Resource:
+              - !Sub arn:aws:codeploy:${AWS::Region}:${AWS::AccountId}:project/${ProjectName}*
+          - Sid: AllowCodeStarConnections
+            Effect: Allow
+            Action:
+              - codestar-connections:CreateConnection
+              - codestar-connections:DeleteConnection
+              - codestar-connections:GetConnection
+              - codestar-connections:ListConnections
+              - codestar-connections:ListTagsForResource
+              - codestar-connections:PassConnection
+              - codestar-connections:TagResource
+              - codestar-connections:UntagResource
+            Resource: '*'
+
+  S3Policy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: 'Politica para escritura y lectura del servicio de S3'
+      ManagedPolicyName: !Join
+        - '-'
+        - - !Ref ProjectName
+          - !Ref AppName
+          - 's3-management'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowS3Actions
+            Effect: Allow
+            Action:
+              - s3:CreateBucket
+              - s3:DeleteBucket
+              - s3:DeleteBucketPolicy
+              - s3:DeleteObject*
+              - s3:GetAccelerateConfiguration
+              - s3:GetBucket*
+              - s3:GetEncryptionConfiguration
+              - s3:GetLifecycleConfiguration
+              - s3:GetMetricsConfiguration
+              - s3:GetObject*
+              - s3:GetReplicationConfiguration
+              - s3:ListBucket*
+              - s3:PutBucketAcl
+              - s3:PutBucketLogging
+              - s3:PutBucketNotification
+              - s3:PutBucketOwnershipControls
+              - s3:PutBucketPolicy
+              - s3:PutBucketPublicAccessBlock
+              - s3:PutBucketTagging
+              - s3:PutBucketVersioning
+              - s3:PutEncryptionConfiguration
+              - s3:PutObject*
+              - s3:*BucketWebsite
+            Resource:
+              - !Sub arn:aws:s3:::${ProjectName}*
+
+          - Sid: AllowNoResource
+            Effect: Allow
+            Action: s3:ListAllMyBuckets
+            Resource: '*'
+
+  DynamoPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: 'Politica que contiene los permisos de S3 y Dynamo para alojar y bloquear el estado del proyecto de terraform'
+      ManagedPolicyName: !Join
+        - '-'
+        - - !Ref ProjectName
+          - !Ref AppName
+          - 'dynamo-management'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowDynamoDBTableActions
+            Effect: Allow
+            Action:
+              - dynamodb:DeleteItem
+              - dynamodb:DescribeTable
+              - dynamodb:GetItem
+              - dynamodb:PutItem
+            Resource: !Sub arn:aws:dynamodb:*:${AWS::AccountId}:table/${ProjectName}*
+
+  IamPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: 'Politica que otorga nivel de acceso de escritura y lectura para Roles y Politicas de IAM'
+      ManagedPolicyName: !Join
+        - '-'
+        - - !Ref ProjectName
+          - !Ref AppName
+          - 'iam-role-policies'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowManagRoleAndPolicies
+            Effect: Allow
+            Action:
+              - iam:AttachRolePolicy
+              - iam:CreatePolicy*
+              - iam:CreateRole
+              - iam:CreateServiceLinkedRole
+              - iam:DeletePolicy*
+              - iam:DeleteRole*
+              - iam:DeleteServiceLinkedRole
+              - iam:DetachRolePolicy
+              - iam:GetPolicy*
+              - iam:GetRole*
+              - iam:GetServiceLinkedRoleDeletionStatus
+              - iam:ListAttachedRolePolicies
+              - iam:ListEntitiesForPolicy
+              - iam:ListInstanceProfilesForRole
+              - iam:ListPolicyTags
+              - iam:ListPolicyVersions
+              - iam:ListRole*
+              - iam:PassRole
+              - iam:PutRole*
+              - iam:TagPolicy
+              - iam:TagRole
+              - iam:UntagPolicy
+              - iam:UntagRole
+              - iam:UpdateAssumeRolePolicy
+              - iam:UpdateRole*
+            Resource:
+              - !Sub arn:aws:iam::${AWS::AccountId}:role/*${ProjectName}*
+              - !Sub arn:aws:iam::${AWS::AccountId}:policy/*${ProjectName}*
+
+  CertManagerPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: 'Politica que otorga nivel de acceso de escritura y lectura del los certificados'
+      ManagedPolicyName: !Join
+        - '-'
+        - - !Ref ProjectName
+          - !Ref AppName
+          - 'cert-manager-rw'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowManagedCertificates
+            Effect: Allow
+            Action:
+              - acm:AddTagsToCertificate
+              - acm:DeleteCertificate
+              - acm:DescribeCertificate
+              - acm:GetAccountConfiguration
+              - acm:GetCertificate
+              - acm:ListCertificates
+              - acm:ListTagsForCertificate
+              - acm:RemoveTagsFromCertificate
+              - acm:RenewCertificate
+              - acm:RequestCertificate
+              - acm:ResendValidationEmail
+              - acm:UpdateCertificateOptions
+            Resource: '*'
+
+  CloudFrontManagerPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: 'Politica que otorga nivel de accesso de escritura y lectura para las distribuciones de Cloud Front'
+      ManagedPolicyName: !Join
+        - '-'
+        - - !Ref ProjectName
+          - !Ref AppName
+          - 'cloud-front-rw'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowWithResource
+            Effect: Allow
+            Action:
+              - cloudfront:AssociateAlias
+              - cloudfront:CreateDistribution
+              - cloudfront:DeleteDistribution
+              - cloudfront:GetDistribution
+              - cloudfront:GetDistributionConfig
+              - cloudfront:ListConflictingAliases
+              - cloudfront:ListTagsForResource
+              - cloudfront:TagResource
+              - cloudfront:UntagResource
+              - cloudfront:UpdateDistribution
+              # [ CreateOriginAccessControl~,DeleteOriginAccessControl,GetOriginAccessControl,GetOriginAccessControlConfig,ListOriginAccessControls,UpdateOriginAccessControl ]
+              # [ origin-access-control* ]
+              - cloudfront:*OriginAccessControl*
+              # [ CreateOriginRequestPolicy,DeleteOriginRequestPolicy,GetOriginRequestPolicy,GetOriginRequestPolicyConfig,ListDistributionsByOriginRequestPolicyId~,UpdateOriginRequestPolicy ]
+              # [ origin-request-policy* ]
+              - cloudfront:*OriginRequestPolicy*
+              # [ CreateCachePolicy,DeleteCachePolicy,GetCachePolicy,GetCachePolicyConfig,ListDistributionsByCachePolicyId,UpdateCachePolicy]
+              # [ cache-policy* ]
+              - cloudfront:*CachePolicy*
+              # [ CreateCloudFrontOriginAccessIdentity,DeleteCloudFrontOriginAccessIdentity,GetCloudFrontOriginAccessIdentity,GetCloudFrontOriginAccessIdentityConfig, UpdateCloudFrontOriginAccessIdentity]
+              # [ origin-access-identity* ]
+              - cloudfront:*OriginAccessIdentity*
+            Resource:
+              - !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/*
+              - !Sub arn:aws:cloudfront::${AWS::AccountId}:origin-access-control/*
+              - !Sub arn:aws:cloudfront::${AWS::AccountId}:origin-request-policy/*
+              - !Sub arn:aws:cloudfront::${AWS::AccountId}:cache-policy/*
+              - !Sub arn:aws:cloudfront::${AWS::AccountId}:origin-access-identity/*
+          - Sid: AllowWithoutResource
+            Effect: Allow
+            Action:
+              - cloudfront:CreateOriginAccessControl
+              - cloudfront:ListCachePolicies
+            Resource: '*'
+
+  ProvisionerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join
+        - '-'
+        - - !Ref ProjectName
+          - !Ref AppName
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: !Sub "${AWS::AccountId}"
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Ref CICDToolsPolicy
+        - !Ref S3Policy
+        - !Ref DynamoPolicy
+        - !Ref IamPolicy
+        - !Ref CertManagerPolicy
+        - !Ref CloudFrontManagerPolicy
+
+  #ProvisionerUser:
+  #  Type: AWS::IAM::User
+  #  Properties:
+  #    UserName: !Join
+  #      - '-'
+  #      - - !Ref ProjectName
+  #      - !Ref AppName
+  #      - !Ref UserName
+
+  AdditionToProvisioningGroup:
+    Type: AWS::IAM::UserToGroupAddition
+    Properties:
+      GroupName: !Ref ProvisioningGroup
+      Users:
+        - leo_dev
+
+  #AccessKeyProvisionerUser:
+  #  Type: AWS::IAM::AccessKey
+  #  Properties:
+  #    UserName: !Ref ProvisionerUser
+
+Outputs:
+  ProvisionerRoleARN:
+    Description: Terraform Role Service ARN
+    Value: !GetAtt ProvisionerRole.Arn
+    # Value: !Ref ProvisionerRole
+  #ProvisionerUserName:
+  #  Description: Nombre del usuario
+  #  Value: !Ref ProvisionerUser
+  #SecretAccessKeyProvisionerUser:
+  #  Description: Secret Access Key para el usuario aprovisionardo
+  #  Value: !GetAtt AccessKeyProvisionerUser.SecretAccessKey
