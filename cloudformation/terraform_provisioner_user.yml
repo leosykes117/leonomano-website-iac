@@ -301,6 +301,40 @@ Resources:
               - cloudfront:ListCachePolicies
             Resource: '*'
 
+  SSMManagerPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: This policy grants read and write permissions for System Manager parameters.
+      ManagedPolicyName: !Join
+        - '-'
+        - - !Ref ProjectName
+          - !Ref AppName
+          - ssm-parameters-rw
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AllowWithResource
+            Effect: Allow
+            Action:
+              # [DeleteParameter, DeleteParameters
+              - ssm:DeleteParameter*
+              - ssm:GetParameter*
+              - ssm:PutParameter
+              # [LabelParameterVersion, UnlabelParameterVersion]
+              - ssm:*ParameterVersion
+              # [AddTagsToResource, ListTagsForResource, RemoveTagsFromResource]
+              - ssm:*Tags*
+              # [DeleteResourcePolicy, GetResourcePolicies, PutResourcePolicy]
+              - ssm:*ResourcePolic*
+            Resource:
+              - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/account-configuration/*/dev/*
+          - Sid: AllowWithoutResource
+            Effect: Allow
+            Action:
+              - ssm:DescribeParameters
+            Resource: '*'
+
+
   ProvisionerRole:
     Type: AWS::IAM::Role
     Properties:
@@ -322,6 +356,7 @@ Resources:
         - !Ref IamPolicy
         - !Ref CertManagerPolicy
         - !Ref CloudFrontManagerPolicy
+        - !Ref SSMManagerPolicy
 
   #ProvisionerUser:
   #  Type: AWS::IAM::User
