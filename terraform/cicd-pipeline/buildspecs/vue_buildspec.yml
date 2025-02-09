@@ -1,0 +1,26 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 18
+    commands:
+      - npm install -g pnpm
+  pre_build:
+    commands:
+      - pnpm --version
+      - echo Installing node packages
+      - pnpm install
+  build:
+    commands:
+      - echo Building on `date`
+      - pnpm build
+  post_build:
+    commands:
+      - echo Build Complete `date`
+
+artifacts:
+  files:
+    - '**/*'
+  name: vue_webapp_$(date +%Y%m%d_%H%M%S)
+  base-directory: dist
